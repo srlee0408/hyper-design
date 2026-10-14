@@ -28,6 +28,7 @@
 const fs = require("fs");
 const path = require("path");
 const LOOKS = require("./looks.js");
+const DRESS = require("./dress.js");   // 꾸밈 카테고리 8개 — packages/core/tokens/dress.css
 const PLATFORM = require("./platform.js");
 const EXPAND = require("./expand.js");   // 안전장치: 펼치지 않은 부품 태그·셸이 남아 있어도 화면이 깨지지 않게
 
@@ -45,6 +46,7 @@ if (!runDir || !["board", "final"].includes(mode)) {
 }
 
 const readJSON = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
+const LAYOUTS = readJSON(path.join(ROOT, "packages/core/layouts/layouts.json")).layouts || [];   // 시안의 레이아웃 패턴 목록
 const read = (p) => fs.readFileSync(p, "utf8");
 const exists = (p) => fs.existsSync(p);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -62,7 +64,15 @@ const accent = swatch;   // 예전 이름 호환
 // 안내 문구(toast) 모양 — 보드 '안내 문구 모음'에서 고른다. 기본: 위쪽 · 아이콘 있음 · 흰 바탕 · 보통 글자
 const TOAST_DEFAULT = { at: "top", icon: "on", tone: "light", size: "normal" };
 const toast = Object.assign({}, TOAST_DEFAULT, (S.toggles && S.toggles.toast) || {});
-const toastAttrs = ` data-toast-at="${esc(toast.at)}" data-toast-icon="${esc(toast.icon)}" data-toast-tone="${esc(toast.tone)}" data-toast-size="${esc(toast.size)}"`;
+// 아이콘 세트: lucide(기본, 선) | fluent(마이크로소프트 Fluent — 선·채움·컬러 + 빈 화면·목록 앞 그림은 3D 이모지). scripts/fluent-assets.js
+// 꾸밈(dress): 고른 시안의 꾸밈이 초안·최종본 전체에 (2턴에 concept.dress를 screens.json dress로 옮긴다). 아이콘 카테고리도 여기서
+const dress = S.dress && typeof S.dress === "object" ? S.dress : null;
+const dressAttrs = DRESS.attrs(dress);
+const iconSet = opt("icons", (dress && dress.icons === "fluent" && "fluent") || (S.toggles && S.toggles.icons) || "lucide") === "fluent" ? "fluent" : "lucide";
+// 시안 중 하나라도 입체 아이콘이면 Fluent 자산을 싣는다(시안 화면만 바꾼다)
+// 시안 보드는 꾸밈 다듬기(아이콘 선 ↔ 입체)를 그 자리에서 바꾸므로 늘 싣는다
+const anyFluent = iconSet === "fluent" || S.stage === "concept" || (Array.isArray(S.concepts) && S.concepts.some((c) => c && c.dress && c.dress.icons === "fluent"));
+const toastAttrs = ` data-icons="${iconSet}"` + ` data-toast-at="${esc(toast.at)}" data-toast-icon="${esc(toast.icon)}" data-toast-tone="${esc(toast.tone)}" data-toast-size="${esc(toast.size)}"`;
 const round = Number(opt("round", S.round || 1));
 const coreDir = path.join(ROOT, "packages/core");
 
@@ -71,6 +81,9 @@ const cssParts = [
   read(path.join(coreDir, "tokens/base.css")),
   read(path.join(coreDir, "tokens/toggles.css")),
   LOOKS.looksCss(looks),   // 분위기·버튼 색 토큰 (screens.json looks → 계산, 없으면 기본 분위기)
+  read(path.join(coreDir, "tokens/dress.css")),   // 꾸밈 카테고리 (data-bg · data-cards · data-head · data-radius · data-space · data-tone)
+  // 꾸밈의 글꼴 카테고리(data-font): 글꼴 세트마다 토큰 — 분위기 글꼴 위에 덮는다
+  Object.keys(LOOKS.FONTS).map((id) => `[data-font="${id}"] .app {\n${Object.entries(LOOKS.fontTokens({ font: id })).map(([k, v]) => `  ${k}: ${v};`).join("\n")}\n}`).join("\n"),
 ];
 // 밤 화면(screen.dark)은 어두운 분위기의 색만 빌리고 글꼴은 고른 분위기를 따른다
 cssParts.push(`.app[data-night] {\n${Object.entries(LOOKS.fontTokens(look)).map(([k, v]) => `  ${k}: ${v};`).join("\n")}\n}`);
@@ -89,21 +102,51 @@ cssParts.push(...canvasCssParts);
 cssParts.push(read(path.join(coreDir, "motion/motion.css")));
 const css = cssParts.join("\n\n");
 
+// ---------- 아이콘 세트(fluent): 화면 조각의 #i-<lucide>를 같은 뜻의 Fluent 심볼(#f-…)로 ----------
+// 빈 화면 큰 아이콘(.empty-icon)·목록 앞 그림(.list-icon)은 3D 이모지(없으면 Fluent 컬러), 고른 메뉴(.nav-item.active)는 채움.
+// 보드의 바깥(도구 막대 등)은 Lucide 그대로 — 화면 안만 바꾼다.
+const FL_SPRITE = anyFluent ? read(path.join(coreDir, "icons/fluent-sprite.svg")) : "";
+const FL = new Set([...FL_SPRITE.matchAll(/<symbol id="f-([^"]+)"/g)].map((m) => m[1]));
+const EMOJI = anyFluent ? readJSON(path.join(coreDir, "illustrations/emoji-map.json")) : {};
+const emojiSrc = (name) => {
+  const em = EMOJI[name]; if (!em || name.startsWith("_")) return null;
+  const p = path.join(coreDir, "illustrations", em.toLowerCase().replace(/\s+/g, "-") + ".png");
+  return exists(p) ? "data:image/png;base64," + fs.readFileSync(p).toString("base64") : null;
+};
+const useRe = (cls) => new RegExp(`(<[a-z]+[^>]*class="[^"]*\\b${cls}\\b[^"]*"[^>]*>\\s*)<svg class="([^"]*)"[^>]*><use href="#i-([a-z0-9-]+)"\\s*/?>(?:</use>)?</svg>`, "g");
+function fluentize(html, on = iconSet === "fluent") {
+  if (!on) return html;
+  for (const cls of ["empty-icon", "list-icon"]) html = html.replace(useRe(cls), (m, open, svgCls, n) => {
+    const src = emojiSrc(n);
+    if (src) return `${open}<img class="illust" src="${src}" alt="" aria-hidden="true">`;
+    return FL.has(n + "-color") ? `${open}<svg class="${svgCls}" aria-hidden="true"><use href="#f-${n}-color"/></svg>` : m;
+  });
+  html = html.replace(/(<(?:a|button)[^>]*class="[^"]*\bnav-item\b[^"]*\bactive\b[^"]*"[^>]*>\s*<svg[^>]*><use href="#)i-([a-z0-9-]+)"/g, (m, pre, n) => FL.has(n + "-filled") ? `${pre}f-${n}-filled"` : m);
+  return html.replace(/href="#i-([a-z0-9-]+)"/g, (m, n) => (FL.has(n) ? `href="#f-${n}"` : m));
+}
+
 // ---------- 화면 조각 ----------
 // 뜨는 창 화면(overlayOf): 조각에는 창(.modal-backdrop)만 있다 → 뒷 화면 조각의 .app 마지막 자식으로 넣어 합친다
 const fragOf = (s) => {
   const p = path.join(runDir, s.file);
   if (!exists(p)) { console.error(`[build] FAIL 조각 없음: ${s.file}`); process.exit(1); }
-  const own = nightTone(s, EXPAND.expandFragment(S, s, read(p)).trim());
+  const own = fluentize(nightTone(s, EXPAND.expandFragment(S, s, read(p)).trim()));
   const base = s.overlayOf && (S.screens || []).find((x) => x.slug === s.overlayOf);
   if (!base) return own;
-  const back = EXPAND.expandFragment(S, base, read(path.join(runDir, base.file))).trim().replace(/\sdata-(trigger|region|stay|back)(="[^"]*")?/g, "");   // 뒷 화면은 배경일 뿐 — 누를 곳·영역 표시는 창에만
+  const back = fluentize(EXPAND.expandFragment(S, base, read(path.join(runDir, base.file))).trim()).replace(/\sdata-(trigger|region|stay|back)(="[^"]*")?/g, "");   // 뒷 화면은 배경일 뿐 — 누를 곳·영역 표시는 창에만
   const cut = back.lastIndexOf("</div>");
   return cut < 0 ? back + "\n" + own : back.slice(0, cut) + own + "\n" + back.slice(cut);
 };
 // 밤에 쓰는 화면(screen.dark: true): 고른 분위기와 상관없이 어두운 분위기(looks 중 mode dark의 첫째)로 칠한다
 // — 측정 시작·측정 중처럼 어두운 방에서 보는 화면과 아침 결과 화면의 상황 차이를 보여 주기 위해
+// 역할마다 글자 크기(roles[].type: "large") — 보기만 하는 부모님 화면만 크게, 계획하는 사람 화면은 보통
+// (사용자: "실제 앱처럼 정렬·글씨 배치·텍스트 크기·폰트를 맞춰야" — 앱 전체를 크게 하면 계획 화면 글자가 넘친다)
+function roleType(s, html) {
+  const r = (S.roles || []).find((x) => x.key === s.role);
+  return r && r.type === "large" ? html.replace(/<div class="(app\b[^"]*)"/, `<div class="$1" data-type="large"`) : html;
+}
 function nightTone(s, html) {
+  html = roleType(s, html);
   if (!s.dark) return html;
   const D = looks.find((l) => l.mode === "dark");
   if (!D) return html;
@@ -133,12 +176,14 @@ if (mode === "board" && (stage === "concept" || !conceptLocked)) for (const c of
     const p = path.join(runDir, "concepts", c.id, slug + ".html");
     if (!exists(p)) { console.warn(`[build] WARN 시안 ${c.id} 화면 없음: concepts/${c.id}/${slug}.html`); continue; }
     const cs = (S.screens || []).find((x) => x.slug === slug) || { slug };
-    sections.push(`<section class="hx-screen" data-screen="${esc(c.id + "~" + slug)}" data-concept="${esc(c.id)}">\n${EXPAND.expandFragment(S, cs, read(p), { concept: c.id }).trim()}\n</section>`);
+    sections.push(`<section class="hx-screen" data-screen="${esc(c.id + "~" + slug)}" data-concept="${esc(c.id)}">\n${fluentize(roleType(cs, EXPAND.expandFragment(S, cs, read(p), { concept: c.id }).trim()), iconSet === "fluent" || !!(c.dress && c.dress.icons === "fluent"))}\n</section>`);
   }
 }
 
 // 분위기의 글꼴 세트가 쓰는 웹 글꼴 (scripts/looks.js FONTS)
-function fontLinkTags(ls) { return LOOKS.fontLinks(ls).map((u) => `<link rel="stylesheet" href="${esc(u)}">`).join("\n"); }
+// 꾸밈의 글꼴 카테고리도 불러온다 (시안 보드는 시안마다, 초안·최종본은 고른 꾸밈)
+const dressFonts = [dress].concat(mode === "board" ? (S.concepts || []).map((c) => c && c.dress) : []).filter((d) => d && d.font && LOOKS.FONTS[d.font]).map((d) => ({ font: d.font }));
+function fontLinkTags(ls) { return LOOKS.fontLinks(ls.concat(dressFonts)).map((u) => `<link rel="stylesheet" href="${esc(u)}">`).join("\n"); }
 
 // 안내·예외: 조각에서 '누르면 뜨는 안내'(data-stay)와 입력칸 글자 수(minlength·maxlength)를 뽑아 보드 ⓘ 카드·마우스 올리기에 쓴다
 const PICK_CLS = /\b(chip|segmented-item|tab|day)\b/;
@@ -178,8 +223,11 @@ const data = {
     concept: mainConcept,
     stage,
     toggles: { type, swatch, toast },
+    // kind: own(PRD 맞춤) · preset(고정 스타일 — 토스 느낌…) · custom(직접 고른 색)
     looks: looks.map((l) => ({ id: l.id, name: l.name, why: l.why || "", mode: l.mode, bg: l.bg, ink: LOOKS.inkOf(l), font: LOOKS.fontOf(l).name,
-      swatches: l.swatches.map((s) => ({ id: s.id, name: s.name, hex: LOOKS.calmHex(s.hex, l.mode === "dark") })) })),
+      kind: l.custom ? "custom" : LOOKS.PRESETS.some((p) => p.id === l.id) && !(S.looks || []).some((o) => o.id === l.id) ? "preset" : "own",
+      swatches: l.swatches.map((s) => ({ id: s.id, name: s.name, hex: LOOKS.primaryHex(l, s) })) })),
+    custom: S.custom || null,
     roles: S.roles || [],
     generatedAt: new Date().toISOString(),
   },
@@ -195,10 +243,18 @@ const data = {
   sections: Array.isArray(S.sections) ? S.sections : [],
   flows: F.flows || [],
   branches: F.branches || [],
-  concepts: mode === "board" ? concepts.map((c) => ({ id: c.id, name: c.name || c.id, why: c.why || "", shell: c.shell || "sidebar", look: c.look || theme,
-    traits: c.traits || [], refs: c.refs || [], screens: c.screens || [] })) : [],
-  references: mode === "board" ? (S.references || []) : [],
+  // 시안은 레이아웃(packages/core/layouts/layouts.json)만 다르다 — 색은 시안 보드 위쪽에서 따로 고른다(사용자 결정 2026-10-14)
+  concepts: mode === "board" ? concepts.map((c) => {
+    const L = LAYOUTS.find((x) => x.id === c.layout) || null;
+    const M = c.mix ? LAYOUTS.find((x) => x.id === c.mix) : null;
+    const da = {}; for (const m of DRESS.attrs(c.dress).matchAll(/data-([a-z]+)="([^"]*)"/g)) da[m[1]] = m[2];
+    return { id: c.id, name: c.name || c.id, why: c.why || "", shell: c.shell || "sidebar", density: c.density || (L && L.density) || "", level: c.level || null,
+      layout: L ? { id: L.id, name: L.name, used: L.used } : null, mix: M ? { id: M.id, name: M.name, used: M.used } : null,
+      dress: Object.assign({}, DRESS.BASE, c.dress || {}), dressAttrs: da, dressWords: DRESS.words(c.dress), traits: c.traits || [], screens: c.screens || [] };
+  }) : [],
   board: mode === "board" ? (S.board || {}) : null,
+  // 꾸밈 카테고리(시안 보드의 꾸밈 다듬기가 값을 바꿔 본다) — scripts/dress.js
+  dressCats: mode === "board" ? { cats: DRESS.CATS, base: DRESS.BASE } : null,
   pages: mode === "final" ? Object.fromEntries(Object.entries(pageFiles(S, F)).map(([k, v]) => [k, "screens/" + v])) : null,
 };
 // </script> 로 JSON이 끊기지 않게
@@ -207,12 +263,17 @@ const dataJSON = JSON.stringify(data).replace(/<\//g, "<\\/");
 // ---------- canvas/*.js ----------
 const canvasJsParts = readDir(path.join(coreDir, "canvas"), ".js");
 if (canvasJsParts.length === 0) console.warn(`[build] WARN packages/core/canvas/*.js 없음`);
-const canvasJs = [read(path.join(coreDir, "motion/motion.js"))].concat(canvasJsParts.length ? canvasJsParts : ["console.warn('canvas.js 없음');"]).join("\n\n");
+// 보드: 색을 직접 고르면 그 자리에서 칠하도록 색 계산(scripts/looks.js)과 색 데이터(presets.json)를 함께 싣는다
+// '색 바꾸기'(packages/core/color/picker.js)는 보드·최종본 모두 — 사용자 결정 2026-10-14: "색상은 최종 결과물에서 바로바로"
+const COLOR_JS = [`window.HX_LOOKS_DATA = ${JSON.stringify(readJSON(path.join(coreDir, "tokens/presets.json")))};`,
+  `window.HX_OWN_LOOKS = ${JSON.stringify(S.looks || [])};`, read(path.join(ROOT, "scripts/looks.js")), read(path.join(coreDir, "color/picker.js"))];
+const looksJs = COLOR_JS;
+const canvasJs = looksJs.concat([read(path.join(coreDir, "motion/motion.js"))]).concat(canvasJsParts.length ? canvasJsParts : ["console.warn('canvas.js 없음');"]).join("\n\n");
 
 // ---------- 조립 (스프라이트 제외) ----------
 const title = mode === "board" ? `${data.meta.title} — ${stage === "concept" ? "시안" : round + "차 보드"}` : `${data.meta.title} — 화면 지도`;
 let html = `<!doctype html>
-<html lang="ko" data-mode="${mode}" data-platform="${platform}" data-theme="${esc(theme)}" data-type="${esc(type)}" data-swatch="${esc(swatch)}"${toastAttrs}>
+<html lang="ko" data-mode="${mode}" data-platform="${platform}" data-theme="${esc(theme)}" data-type="${esc(type)}" data-swatch="${esc(swatch)}"${toastAttrs}${dressAttrs}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -257,7 +318,14 @@ if (mode === "board") {
 const missing = [...used].filter((n) => !symbols.has(n));
 if (missing.length) { console.error(`[build] FAIL 스프라이트에 없는 아이콘: ${missing.join(", ")}`); process.exit(1); }
 const defs = [...used].sort().map((n) => `<symbol id="i-${n}"${symbols.get(n).attrs}>${symbols.get(n).body.trim()}</symbol>`).join("\n");
-html = html.replace("__SPRITE__", `<svg id="hx-sprite" xmlns="http://www.w3.org/2000/svg" hidden><defs>\n${defs}\n</defs></svg>`);
+// Fluent 심볼: 화면이 쓴 #f-… + 움직임의 안내 상자 아이콘(보드는 아이콘 바꾸기 목록 전부)
+const flSymbols = new Map([...FL_SPRITE.matchAll(/<symbol id="f-([^"]+)"([^>]*)>([\s\S]*?)<\/symbol>/g)].map((m) => [m[1], { attrs: m[2], body: m[3] }]));
+const TOAST_ICONS = ["circle-check", "circle-alert", "triangle-alert", "info"];
+const flUsed = new Set([...html.matchAll(/#f-([a-z0-9-]+)/g)].map((m) => m[1]));
+if (iconSet === "fluent") TOAST_ICONS.forEach((n) => flUsed.add(n));
+if (mode === "board" && anyFluent) used.forEach((n) => flSymbols.has(n) && flUsed.add(n));
+const flDefs = [...flUsed].filter((n) => flSymbols.has(n)).sort().map((n) => `<symbol id="f-${n}"${flSymbols.get(n).attrs}>${flSymbols.get(n).body.trim()}</symbol>`).join("\n");
+html = html.replace("__SPRITE__", `<svg id="hx-sprite" xmlns="http://www.w3.org/2000/svg" hidden><defs>\n${defs}\n${flDefs}\n</defs></svg>`);
 
 // ---------- 출력 ----------
 const outDefault = path.join(runDir, "out", mode === "board" ? "board.html" : "index.html");
@@ -292,7 +360,9 @@ if (mode === "final") {
     const navMap = {};
     for (const r of S.roles || []) for (const n of r.nav || []) if (files[n.slug] && !navMap[n.label]) navMap[n.label] = files[n.slug];
     const icons = new Set([...frag.matchAll(/#i-([a-z0-9-]+)/g)].map((m) => m[1]).concat(["chevron-left", "chevron-right", "layout-grid", "circle-check", "circle-alert", "info", "triangle-alert"]));
-    const pdefs = [...icons].filter((n) => symbols.has(n)).sort().map((n) => `<symbol id="i-${n}"${symbols.get(n).attrs}>${symbols.get(n).body.trim()}</symbol>`).join("\n");
+    const fIcons = new Set([...frag.matchAll(/#f-([a-z0-9-]+)/g)].map((m) => m[1]).concat(iconSet === "fluent" ? TOAST_ICONS : []));
+    const pdefs = [...icons].filter((n) => symbols.has(n)).sort().map((n) => `<symbol id="i-${n}"${symbols.get(n).attrs}>${symbols.get(n).body.trim()}</symbol>`).join("\n")
+      + "\n" + [...fIcons].filter((n) => flSymbols.has(n)).sort().map((n) => `<symbol id="f-${n}"${flSymbols.get(n).attrs}>${flSymbols.get(n).body.trim()}</symbol>`).join("\n");
     const prev = order[i - 1] ? files[order[i - 1]] : null, next = order[i + 1] ? files[order[i + 1]] : null;
     const nav = `<nav class="hx-page-nav" aria-label="화면 이동">
   <a href="../index.html"><svg class="icon-sm" aria-hidden="true"><use href="#i-layout-grid"/></svg>전체 화면</a>
@@ -302,7 +372,7 @@ if (mode === "final") {
   ${next ? `<a href="${next}" aria-label="다음 화면"><svg class="icon-sm" aria-hidden="true"><use href="#i-chevron-right"/></svg></a>` : `<span class="hx-page-off"><svg class="icon-sm" aria-hidden="true"><use href="#i-chevron-right"/></svg></span>`}
 </nav>`;
     const page = `<!doctype html>
-<html lang="ko" data-platform="${platform}" data-theme="${esc(theme)}" data-type="${esc(type)}" data-swatch="${esc(swatch)}"${toastAttrs}>
+<html lang="ko" data-platform="${platform}" data-theme="${esc(theme)}" data-type="${esc(type)}" data-swatch="${esc(swatch)}"${toastAttrs}${dressAttrs}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -382,6 +452,10 @@ ${nav}
 <script>window.HX_MOTION = ${JSON.stringify({ overlay: !!s.overlayOf, cases: (s.cases || []).filter((c) => c && c.when && c.show), items: (s.motion || []).filter((m) => m && m.type) }).replace(/<\//g, "<\\/")};</script>
 <script>
 ${MOTION_JS}
+</script>
+<script>
+${COLOR_JS.join("\n").replace(/<\/script/gi, "<\\/script")}
+window.HXColor && window.HXColor.mount({ project: ${JSON.stringify(S.project || "project")}, persist: true, custom: ${JSON.stringify(S.custom || null)} });   // 색 바꾸기 — 이 브라우저에 기억해 모든 화면이 함께 바뀐다
 </script>
 </body>
 </html>

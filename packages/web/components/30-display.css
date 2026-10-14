@@ -282,3 +282,8 @@ button.chip, a.chip { cursor: pointer; }
 
 /* 세로로 쌓는 묶음 안의 배지는 글자만큼만 (폭을 다 차지하지 않게) */
 .stack > .badge, .empty > .badge, .card-body > .badge { align-self: flex-start; }
+
+/* ---- 3D 그림(아이콘 세트 fluent일 때 build.js가 .empty-icon·.list-icon 안에 넣는다 — Fluent Emoji, MIT) ---- */
+.illust { display: block; width: 100%; height: 100%; object-fit: contain; }
+.app .empty-icon:has(> .illust) { width: 88px; height: 88px; background: none; border: 0; }
+.app .list-icon:has(> .illust) { background: var(--c-surface-2); padding: 6px; }

@@ -1,7 +1,7 @@
 # prompt-log — srlee0408
 
 - 하네스: https://github.com/vmc-inner-circle/hyper-design/tree/solo/srlee0408
-- 모델·에이전트: Claude Code / {메인 모델} (메인) + claude-sonnet-5 (ref-scout · screen-writer) + claude-haiku-4-5 (작은 수정)
+- 모델·에이전트: Claude Code / {메인 모델} (메인) + claude-sonnet-5 (screen-writer) + claude-haiku-4-5 (작은 수정)
 - 총 개입 횟수: {n} / 5
 
 ## 1회 (PRD 입력)
@@ -12,7 +12,7 @@
 > (내 답변 원문) …
 
 ## 2회
-> (AI 질문 요약) 시안 보드 — 레퍼런스 {r}곳을 살펴보고 만든 시안 5개(시안마다 메인 화면 {s}장) 중 하나 고르기 · 안마다 적는 칸 → 시안 보내기
+> (AI 질문 요약) 시안 보드 — 레이아웃 패턴이 다른 시안 5개(시안마다 메인 화면 {s}장) 중 하나와 색(스타일·직접 고르기) 고르기 · 안마다 적는 칸 → 시안 보내기
 > (내 답변 원문)
 > ```
 > {붙여넣은 답변 원문}

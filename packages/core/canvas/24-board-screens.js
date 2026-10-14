@@ -275,8 +275,8 @@
     }
     // ---------- 아이콘 바꾸기: 허용된 Lucide 아이콘 중에서 고르면 화면에 바로 반영 ----------
     var ICONS = (function () { try { return JSON.parse((doc.getElementById("hx-icons") || {}).textContent || "[]"); } catch (e) { return []; } })();
-    function iconNameOf(svg) { var u = svg && svg.querySelector("use"); var h = u && (u.getAttribute("href") || u.getAttribute("xlink:href")) || ""; return h.replace(/^#i-/, ""); }
-    function setIcon(svg, name) { var u = svg && svg.querySelector("use"); if (u) { u.setAttribute("href", "#i-" + name); } }
+    function iconNameOf(svg) { var u = svg && svg.querySelector("use"); var h = u && (u.getAttribute("href") || u.getAttribute("xlink:href")) || ""; return h.replace(/^#[if]-/, "").replace(/-(filled|color)$/, ""); }
+    function setIcon(svg, name) { var u = svg && svg.querySelector("use"); if (u) { u.setAttribute("href", (doc.documentElement.getAttribute("data-icons") === "fluent" && doc.getElementById("f-" + name) ? "#f-" : "#i-") + name); } }
     function applyIconPins() {   // 저장된 아이콘 교체를 화면에 다시 입힌다
       pinsOf(cur).forEach(function (p) { if (p.icon) { var el = resolve(p.path); if (el) setIcon(el, p.icon.to); } });
     }

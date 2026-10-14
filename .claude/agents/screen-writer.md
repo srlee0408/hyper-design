@@ -21,7 +21,7 @@ model: sonnet
 - `DOMAIN=…` — 더미 데이터 힌트(인물·장소·기간·상태 어휘). **모든 화면에 이 값을 그대로 쓴다.**
 - `MODE=revise` 가 있으면 수정 모드: `CHANGES=`만 반영하고 `KEEP=` 영역은 그대로 둔다.
 - `SHELL=nav-top|nav-rail` 은 참고용이다 — 셸은 쓰지 않으므로 expand.js가 그 메뉴 구조로 붙인다. 다만 위쪽 탭 메뉴(top)는 본문이 가운데 좁게 놓이니 그에 맞게 배치한다.
-- `CONCEPT=<id>` 가 있으면 **시안 모드**: 같은 화면을 다른 시안으로 만든다. `RUN/screens.json`의 `concepts`에서 그 시안(shell·traits·refs)을 읽고, 프롬프트의 "시안 메모"대로 **메뉴 구조와 첫 화면 구성·밀도를 바꾼다**. 내용(문구·데이터)·영역(data-region)·트리거(data-trigger)는 원래 화면과 같게. 출력은 `RUN/concepts/<id>/<slug>.html`.
+- `CONCEPT=<id>` 가 있으면 **시안 모드**: 같은 화면을 다른 시안으로 만든다. `RUN/screens.json`의 `concepts`에서 그 시안(shell·layout·traits)을 읽고, 작업 묶음의 레이아웃 구성(`packages/core/layouts/layouts.json` recipe)과 프롬프트의 "시안 메모"대로 **메뉴 구조와 첫 화면 구성·밀도를 바꾼다**. 색은 바꾸지 않는다(모든 시안이 같은 색 — 보드에서 고른다). 내용(문구·데이터)·영역(data-region)·트리거(data-trigger)는 원래 화면과 같게. 출력은 `RUN/concepts/<id>/<slug>.html`.
 - `MODE=restyle` 이 있으면 **시안 맞추기**: 기존 `RUN/screens/<slug>.html`을 읽어 `SHELL`과 "시안 메모"대로 뼈대·배치만 바꾼다. 문구·영역·트리거·data-back·data-stay는 그대로 옮긴다. 같은 경로에 덮어쓴다.
 
 ## 절차 (화면 하나당)

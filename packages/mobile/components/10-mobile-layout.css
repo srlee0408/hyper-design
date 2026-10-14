@@ -200,3 +200,7 @@
 [data-toast-at="bottom"] .app-mobile .toast, [data-toast-at="bottom"] .app-mobile .toast-stack { top: auto; bottom: var(--sp-6); }
 [data-toast-at="bottom"] .app-mobile:has(.tabbar) .toast, [data-toast-at="bottom"] .app-mobile:has(.tabbar) .toast-stack { bottom: calc(var(--tabbar-h) + var(--sp-3)); }
 [data-toast-at="bottom"] .app-mobile:has(.bottom-cta) .toast, [data-toast-at="bottom"] .app-mobile:has(.bottom-cta) .toast-stack { bottom: calc(var(--ctl-lg) * 2 + var(--sp-10)); }
+
+/* 실제 폰처럼 화면 안 스크롤 막대는 보이지 않게 (사용자 2026-10-14: "스크롤 보이는 거 거슬리고") */
+.app-mobile .content, .app-mobile .content * { scrollbar-width: none; }
+.app-mobile .content::-webkit-scrollbar, .app-mobile .content *::-webkit-scrollbar { display: none; }

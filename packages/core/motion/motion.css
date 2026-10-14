@@ -62,3 +62,13 @@
 .mo-cap-when.is-ok { background: rgba(21, 128, 61, .92); }
 .mo-cap-when.is-info { background: rgba(37, 99, 235, .92); }
 .mo-cap-when.is-warn { background: rgba(180, 83, 9, .92); }
+
+/* ---- 스크롤 움직임 (motion.js scrollMotion) ---- */
+.mo-rv { opacity: 0; transform: translateY(18px); transition: opacity .45s ease var(--mo-rv-d, 0ms), transform .45s cubic-bezier(.2, .8, .2, 1) var(--mo-rv-d, 0ms); }
+.mo-rv.mo-rv-in { opacity: 1; transform: none; }
+.app .content .page-title { transform-origin: 0 50%; will-change: transform, opacity; }
+.app > .appbar, .app > .topnav, .app > .toptabs { transition: box-shadow .2s ease; }
+.app.mo-scrolled > .appbar, .app.mo-scrolled > .topnav, .app.mo-scrolled > .toptabs { box-shadow: 0 1px 0 var(--c-border), 0 6px 14px rgba(0, 0, 0, .05); }
+.app.mo-large > .appbar .appbar-title { opacity: 0; transform: translateY(6px); transition: opacity .2s ease, transform .2s ease; }
+.app.mo-large.mo-title-up > .appbar .appbar-title { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .mo-rv { opacity: 1; transform: none; transition: none; } }

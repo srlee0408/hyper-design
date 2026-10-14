@@ -6,9 +6,11 @@
 
 | 줄 | 뜻 | 반영 |
 |---|---|---|
-| `시안 b(달력 한 장으로 보기)` | 1턴 시안 보드의 첫 줄: 고른 시안 | SKILL 2턴대로 그 시안으로 전체 화면을 만든다(`concept`, `stage` 삭제, `theme` = 그 시안의 look, `board.locked = ["concept"]`) |
+| `시안 f(숫자 칸과 소식을 섞어 보기)` | 1턴 시안 보드의 첫 줄: 고른 시안(과감함 단계 하나) | SKILL 2턴대로 그 시안으로 전체 화면을 만든다(`concept`, `stage` 삭제, `dress` = 그 시안의 dress, `board.locked = ["concept", "dress"]`). 색은 1턴에 고르지 않는다 |
+| `꾸밈 bg=band cards=float head=huge radius=sharp space=airy font=suit icons=fluent tone=bold` | 시안 보드 월드컵의 꾸밈 다듬기(10~13단계)에서 고른 꾸밈 — 고른 시안의 dress를 바꾼 것 | `screens.json` `dress` = 이 값들(시안의 dress 대신). `scripts/dress.js` 값 이름 그대로 |
+| `테마 custom(#C8553D 테라코타 · 바탕 warm) · 글자 크게` | '색 바꾸기'에서 팔레트로 직접 고른 색 + 바탕(12가지 id: white·gray·warm·sand·sky·mint·pink·lilac·tint·dark·navy·ink, 또는 `#RRGGBB` = 그 밖의 바탕) | `screens.json` `"custom": { "hex": "#C8553D", "name": "테라코타", "base": "warm" }`(바탕이 #RRGGBB면 `"bgHex": "#…"`, `스타일 toss`가 있으면 `"from": "toss"` — 그 스타일의 바탕·모양·글꼴 위에 버튼 색만 바꾼 것. 예: `테마 custom(#C8553D 테라코타 · 스타일 toss · 바탕 mint)`), `theme: "custom"`, `toggles.swatch: "custom"`, toggles.type. 표면·테두리·눌림색은 looks.js `customLook`이 계산 |
 | `시안 c 메모: 달력은 이 안처럼` | 시안마다 적은 말 | 고른 시안의 메모 = 고칠 점. **다른 시안의 메모 = 그 안에서 가져올 요소** — 어느 화면의 무엇인지 해석해 screen-writer의 "시안 메모"에 명령형으로 넣는다(예: "홈의 할 일 목록 자리에 시안 C의 모임 카드 모음(grid-3)"). 해석은 답변 로그에 |
-| `테마 cream(따뜻한 크림) · 글자 크게 · 버튼색 terracotta(테라코타)` | 화면 느낌 선택 (괄호 안은 사람용 이름, id만 쓴다) | `screens.json` theme = 테마 id, toggles.type = 보통→normal·크게→large, toggles.swatch = 버튼색 id. 뒤에 `(확정)`이면 이미 잠긴 것 |
+| `테마 toss(토스 느낌) · 글자 크게 · 버튼색 blue(파랑)` | 초안의 글자 크기 · '색 바꾸기' 선택 (괄호 안은 사람용 이름, id만 쓴다 — 고정 스타일 id면 looks에 넣지 않아도 된다) | `screens.json` theme = 테마 id, toggles.type = 보통→normal·크게→large, toggles.swatch = 버튼색 id. 뒤에 `(확정)`이면 이미 잠긴 것 |
 | (예전 형식) `테마 B · 글자 크게 · 강조 차분` | 분위기·글자 크기·버튼 색 선택(화면에는 '버튼 색 차분하게/눈에 띄게'로 보이지만 글은 '강조 차분/선명'). `(확정)`이 붙으면 이미 잠긴 것 | `screens.json` theme/toggles. B→"b", 크게→large, 보통→normal, 선명→vivid, 차분→calm |
 | `안내 문구: 위치 화면 아래 · 아이콘 없음 · 색 어두운 바탕 · 글자 크게` | 화면 디자인 '안내 문구 모음'에서 고른 안내 문구 모양(추천과 다를 때만 온다) | `screens.json` `toggles.toast` = `{ at: 화면 위→top·화면 아래→bottom, icon: 있음→on·없음→off, tone: 흰 바탕→light·어두운 바탕→dark·상태 색 바탕→color, size: 보통→normal·크게→large }`. 조각은 고치지 않는다(부품 CSS가 `<html data-toast-*>`로 모든 화면에 적용). 확정하면 `board.locked`에 `toast` |
 | `화면 <S> · 안내 문구 '<문구>' 바꿔: <메모> [toast:<문구 전체>]` | 화면에 잠깐 뜨는 안내 문구 하나를 고쳐 달라 | 그 화면에서 문구 전체가 같은 곳을 찾아 고친다 — 버튼의 `data-stay="…"`(조각)이면 조각을, `screens.json` 그 화면의 `cases[].show`면 데이터를. '창(팝업)으로'·'입력칸 아래 글자로'는 문구를 그 화면의 확인 창·`.field-error`로 옮기는 재작성. `빼기`면 그 `data-stay`/`cases` 항목을 지운다 |

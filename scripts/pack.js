@@ -34,11 +34,13 @@ const RULES = `
 4. **눌러야 하는 버튼**(아래 화면별 목록): 그 영역 안의 버튼 하나에 \`data-trigger="<key>"\`, 버튼 글자는 적힌 문구 그대로.
 5. **글자가 있는 나머지 .btn**은 셋 중 하나: 이전 화면으로(취소·닫기·'~로') = \`data-back\` / 그 자리에서 바뀜(삭제·필터·다시 보내기) = \`data-stay="바뀐 뒤 안내 한 문장(해요체)"\` / 같은 일을 하는 버튼이 여러 행에 있으면 첫 행에만 data-trigger, 나머지는 **글자만 똑같이**.
 6. 문구는 전부 실제 문구(DOMAIN 값). "버튼"·"텍스트"·Lorem 금지. 목록은 3~5행. 사람을 높여 부를 땐 "님".
-7. 상태 표시는 배지로 통일(같은 뜻 = 같은 색). 화면당 primary 버튼은 1개 이하.
+7. 상태 표시는 배지로 통일(같은 뜻 = 같은 색). 화면당 primary 버튼은 1개 이하. 진행 막대 폭은 \`<div class="progress-bar w-60">\`(.w-10~.w-100, 10% 단위 — 인라인 style 대신).
 8. \`state: first-run·empty\` 화면은 \`<x-empty>\`로 비워 둔다(숫자·목록 금지, primary 버튼 하나). \`state: input\`은 입력칸에 예시 값.
 9. 체크 목록·출석처럼 "보고 체크"하는 것은 체크박스 대신 아이콘: 한 것 \`<x-icon name="square-check" tone="success"/>\`, 안 한 것 \`<x-icon name="square" tone="muted"/>\`.
 10. 아이콘 이름은 아래 목록에 있는 것만.
 10-1. **안내·예외**: 글자 칸(input·textarea)에는 화면별 메모의 글자 수로 \`maxlength\`(필요하면 \`minlength\`) — 완성본에서 '3/20'이 보인다. 그 자리에서 바뀌는 버튼의 \`data-stay\`는 무엇이 됐는지 한 문장, 실패·오류 안내면 \`data-stay-tone="danger"\`. 지우기·삭제처럼 되돌릴 수 없는 버튼은 바로 끝내지 않고 확인 창(갈래)을 연다.
+10-2. **사용성 10원칙**(NN/g): ①지금 어디인지·누른 뒤 무엇이 됐는지 보이게 ②개발 말(error·서버·코드) 금지 ③뜨는 창엔 닫기·취소(data-back), 입력 화면엔 취소 ④같은 행동 = 같은 문구·아이콘·버튼 모양 ⑤되돌릴 수 없으면 확인 창, 고를 수 있으면 고르게, 기본값 채우기 ⑥입력칸마다 .field-label(안내 글자만 금지)·앞에서 고른 값 다시 보여 주기 ⑦항목 10개 이상이면 검색·거르기 ⑧주 버튼 하나·필요 없는 설명 빼기 ⑨오류는 .field-error·.banner-danger로 눈에 띄게 + 왜 + 어떻게 고치는지 + 고칠 버튼("잘못된 입력입니다" 금지) ⑩처음·빈 화면엔 무엇부터 할지 한 줄 + 시작 버튼.
+10-3. **실제 앱처럼 글자·정렬**: 글자 크기는 화면 제목(.page-title) · 큰 숫자(.big-num/.stat-value/.tile-num, 판 하나에 하나) · 묶음 제목(.section-title) · 본문 · 보조(.text-sm .text-2) · 작은 글(.text-xs)만 — 본문에 .text-lg/.text-xl 섞지 않기, 한 판에 가장 큰 글자는 하나. 정렬은 왼쪽(가운데는 .empty·처음 화면·창의 안내·.hero/.poster 안에서만). 같은 종류의 줄은 같은 크기·들여쓰기. 숫자와 단위는 한 줄(D-65 뒤 줄바꿈 금지). 버튼 글자는 한 줄 6~10자. .avatar 안에는 한 글자, 이름은 한 번만. 글꼴·굵기·색은 조각에 쓰지 않는다. size="lg" 버튼은 맨 아래 주 버튼 하나에만.
 11. **읽을 것은 이 파일 하나뿐. 화면마다 Write 한 번. 쓴 뒤 다시 열어 점검하지 않는다** — 메인이 expand·lint로 본다. 다른 파일(다른 runs/*, 패턴·조각 문서)은 열지 않는다.`;
 
 // ---------- 부품 표 (05-parts.md에서 그대로) ----------
@@ -56,7 +58,7 @@ const mobilePartsTable = [section(mobileParts, "## 부품\n"), section(mobilePar
 // ---------- 쓸 수 있는 클래스 (components에서 자동) ----------
 const PLATFORM = require("./platform.js");
 const classLines = PLATFORM.files(S.platform || "web", "components", ".css").map((f) => {
-  const names = [...new Set([...read(f.path).matchAll(/^\.([a-z][a-z0-9-]*)/gm)].map((m) => m[1]))]
+  const names = [...new Set([...read(f.path).matchAll(/(?:^|\}\s*)\.([a-z][a-z0-9-]*)/gm)].map((m) => m[1]))]
     .filter((n) => !/^(app|topnav|sidebar|nav|toast|tooltip|skeleton|dropdown|popover|kbd|tabbar|toptabs|sheet)/.test(n));
   return names.length ? `- ${f.layer === "web" ? "" : f.layer + "/"}${f.file.replace(/^\d+-|\.css$/g, "")}: ${names.join(" ")}` : "";
 }).filter(Boolean);
@@ -94,6 +96,30 @@ const MOBILE_EXAMPLES = `
 <div class="bottom-cta" data-region="…"><x-btn variant="primary" data-trigger="…">예약 확정</x-btn></div>   ← 본문 맨 마지막, 화면당 하나
 \`\`\`
 - 쓰지 않는다: .split · .table · .week-grid · .grid-3 · .grid-4 · .form-actions · .page-actions의 primary (모바일 규칙 참고).`;
+
+// 에이전트가 구조를 몰라 피하던 부품의 짧은 예 (2026-10-14 테스트: 달력·타임라인·얼굴 줄·창의 부품을 "마크업을 몰라" 안 씀)
+const PART_EXAMPLES = `
+### 자주 묻는 부품 — 이 모양 그대로
+\`\`\`html
+<!-- 타임라인: 날짜 머리 + 항목(시간 · 점 · 내용) -->
+<div class="timeline"><div class="timeline-date">10월 25일 (토)</div>
+  <div class="timeline-item"><span class="timeline-time">12:00</span><span class="timeline-dot dot-success"></span>
+    <div class="timeline-content"><div class="timeline-title">대학 동기 모임 <span class="badge badge-success">확정</span></div><p class="timeline-desc">강남 · 4명</p></div></div></div>
+<!-- 달력: 요일 7칸 + 날짜 칸(.has-event 점 · .today · .selected · .is-other-month). 한 달을 다 채운다 -->
+<div class="calendar"><div class="calendar-header"><span class="calendar-title">2026년 10월</span></div>
+  <div class="calendar-grid"><span class="calendar-weekday">일</span>…<span class="calendar-weekday">토</span>
+    <button class="calendar-day is-other-month">28</button>…<button class="calendar-day today">14</button><button class="calendar-day has-event selected">25</button>…</div></div>
+<!-- 얼굴 줄: 동그라미 안 한 글자, 이름은 아래 -->
+<div class="story-row"><div class="story is-new"><span class="avatar">서</span>서연</div><div class="story"><span class="avatar">도</span>도현</div></div>
+<!-- 큰 색 머리 + 겹친 판 -->
+<div class="hero"><span class="hero-eyebrow">이번 토요일</span><h2 class="hero-title">대학 동기 모임</h2><p class="hero-desc">강남 · 12:00</p></div>
+<x-card class="overlap">…</x-card>
+<!-- 벤토: 칸 크기를 섞는다 -->
+<div class="bento"><div class="tile tile-primary span-2"><span class="tile-label">결혼식까지</span><span class="tile-num">D-73</span></div><div class="tile tall">…</div><div class="tile">…</div></div>
+<!-- 대화: 받은 것 / 내가 보낸 것(.me) -->
+<div class="chat"><div class="bubble-row"><span class="avatar">서</span><div class="bubble">25일 점심 돼요!</div><span class="bubble-meta">10:12</span></div>
+  <div class="bubble-row me"><div class="bubble">좋아요, 25일로 할게요</div></div></div>
+\`\`\``;
 
 // ---------- 아이콘 ----------
 const allow = JSON.parse(read(path.join(ROOT, "packages/core/icons/allowlist.json")));
@@ -156,10 +182,21 @@ const blocks = slugs.map((slug) => {
 });
 
 const shellNote = C ? `시안 ${C.id.toUpperCase()} "${C.name}" — 메뉴 구조 ${C.shell}${MOBILE ? (C.shell === "top" ? "(위 알약 탭 메뉴)" : C.shell === "none" ? "(메뉴 없음)" : "(아래 탭 메뉴)") : C.shell === "top" ? "(위쪽 탭 메뉴 — 본문이 가운데 좁게 놓인다)" : C.shell === "rail" ? "(아이콘 메뉴 — 본문 폭이 넓다)" : ""} · 첫 화면 ${C.home || "-"} · 밀도 ${C.density || "-"}` : "";
+// 시안의 레이아웃 패턴 (packages/core/layouts/layouts.json) — 첫 화면(메뉴 화면)을 이 구성으로 짠다
+const CLAYOUT = C && C.layout ? (JSON.parse(read(path.join(ROOT, "packages/core/layouts/layouts.json"))).layouts || []).find((l) => l.id === C.layout) : null;
+const ALL_LAYOUTS = JSON.parse(read(path.join(ROOT, "packages/core/layouts/layouts.json"))).layouts || [];
+const CMIX = C && C.mix ? ALL_LAYOUTS.find((l) => l.id === C.mix) : null;
+const recipeOf = (L) => `"${L.name}" — ${L.recipe}${MOBILE && L.mobile ? ` 휴대폰: ${L.mobile}` : ""}`;
+// 과감함 단계(시안 10개 = 1~10단계): 높을수록 구성도 과감하게 — 사용자 결정 2026-10-14 "너무 다 비슷함"
+const LEVEL_NOTE = !C || !C.level ? "" : C.level <= 3 ? "무난하게: 흔한 앱처럼 익숙한 배치, 판은 위에서 아래로 차례대로."
+  : C.level <= 6 ? "조금 과감하게: 두 패턴을 섞어 첫 화면 위쪽과 아래쪽 구성이 확실히 다르게, 큰 숫자·큰 판 하나로 강약을 준다."
+  : "과감하게: 창의 부품(.hero+.overlap · .bento · .scroll-row · .story-row · .chat · .poster)을 적극 써서 흔한 앱과 다른 첫인상을 만든다. 크기 대비를 크게(아주 큰 글자·꽉 찬 색 판·넓은 여백), 같은 모양의 판이 세 번 이상 연달아 오지 않게.";
+const layoutNote = CLAYOUT ? `레이아웃 ${recipeOf(CLAYOUT)}${CMIX ? `\n섞을 레이아웃 ${recipeOf(CMIX)} — 첫 화면의 위쪽은 첫 레이아웃, 아래쪽이나 다른 메뉴 화면은 섞을 레이아웃으로 조합한다.` : ""}${C.level ? `\n과감함 ${C.level}단계 / 10 — ${LEVEL_NOTE}` : ""}\n(메뉴에 있는 화면·첫 화면은 이 구성으로, 나머지 화면도 같은 밀도·같은 손맛으로. 색·배경·판 모양·글꼴은 화면 바깥에서 입히니 조각에 쓰지 않는다)` : "";
 const out = `# 작업 묶음 — ${slugs.join(", ")}${C ? ` (시안 ${C.id})` : ""}
 
 **이 파일만 읽고, 아래 화면을 하나씩 Write 한 번으로 쓴 뒤 끝낸다.** 점검은 메인이 한다. RUN = ${runDir}
-${shellNote ? "\n" + shellNote + "\n" : ""}
+**플랫폼: ${MOBILE ? "휴대폰(390×844) — 아래 '모바일 규칙'이 위 규칙보다 우선. 메뉴 구조(아래 탭·위 알약 탭·메뉴 없음)와 상관없이 모든 화면이 휴대폰 화면이다" : "컴퓨터(1280×800)"}**
+${shellNote ? "\n" + shellNote + "\n" : ""}${layoutNote ? "\n" + layoutNote + "\n" : ""}
 ## 규칙
 ${RULES.trim()}
 ${MOBILE && mobileRules ? `\n## 모바일 규칙 (390×844 — 위 규칙과 다르면 이쪽을 따른다)\n${mobileRules}\n` : ""}
@@ -169,6 +206,7 @@ ${MOBILE && mobilePartsTable ? `\n### 모바일에서 달라지는 부품\n${mob
 ## 쓸 수 있는 클래스
 ${classLines.join("\n")}
 ${(MOBILE ? MOBILE_EXAMPLES : EXAMPLES).trim()}
+${PART_EXAMPLES.trim()}
 
 ## 아이콘 (이 이름만)
 ${icons.join(" ")}

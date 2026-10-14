@@ -9,6 +9,8 @@
 
   FINAL.start = function (app) {
     app.classList.add("hx-app"); app.classList.add("hx-final");
+    // 색 바꾸기 — 완성본에서도 색을 자유롭게 (이 브라우저에 기억해 화면별 페이지와 함께 바뀐다)
+    if (window.HXColor) window.HXColor.mount({ project: HX.meta.project, persist: true, custom: HX.meta.custom || null });
     var views = { map: HX.buildSections(), play: HX.buildPlayer(), all: FINAL.buildAll() };
     views.play.el.classList.add("hx-pl-on");
     FINAL.views = views;

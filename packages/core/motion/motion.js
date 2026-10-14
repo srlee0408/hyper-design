@@ -6,6 +6,10 @@
    type: hold(길게 누르기) · breathe(숨 쉬듯 깜빡임) · dim(몇 초 뒤 어두워짐) · countup(숫자 올라가기) · stagger(차례로 나타나기)
          reorder(길게 눌러 끌어 순서 바꾸기) · carousel(자동으로 넘어가는 띠) · play(재생 막대)
    target = 영역 key(data-region) 또는 버튼 key(data-trigger). 화면에 안내 UI는 두지 않는다 — 설명은 보드의 ⓘ 규칙 카드('움직임' 묶음). */
+/* 스크롤 움직임(모든 완성본 화면에 기본 — 사용자 2026-10-14: "내부 애니메이션도 — 스크롤이나 이런 애니메이션들"):
+   · 스크롤 따라 나타나기: 처음 화면 아래에 있던 판이 들어올 때 살짝 떠오르며
+   · 큰 제목 접힘: 내리면 화면 제목이 작아지며 사라지고, 위 제목 줄(뒤로 화면)에 이름이 나타난다
+   · 위 줄 그림자: 내리면 위 제목 줄·위쪽 메뉴에 얇은 그림자. 움직임 줄이기 설정이면 모두 끈다 */
 (function () {
   "use strict";
   var doc = document;
@@ -37,7 +41,7 @@
     tone = TONE_ICON[tone] ? tone : "success";
     var old = app.querySelector(".toast.mo-toast"); if (old) old.remove();
     var t = doc.createElement("div"); t.className = "toast toast-" + tone + " mo-toast"; t.setAttribute("role", "status");
-    t.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-' + TONE_ICON[tone] + '"/></svg><div class="toast-body"><span class="toast-title"></span>' + (sub ? '<span class="toast-desc"></span>' : "") + "</div>";
+    t.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#' + (doc.documentElement.getAttribute("data-icons") === "fluent" ? "f-" : "i-") + TONE_ICON[tone] + '"/></svg><div class="toast-body"><span class="toast-title"></span>' + (sub ? '<span class="toast-desc"></span>' : "") + "</div>";
     t.querySelector(".toast-title").textContent = msg; if (sub) t.querySelector(".toast-desc").textContent = sub;
     app.appendChild(t); return t;
   }
@@ -403,6 +407,36 @@
     return { stop: stopAll };
   };
 
+  /* 스크롤 움직임 — 완성본 화면별 페이지와 시안 캔버스(화면 위에서 휠)가 함께 쓴다 */
+  function scrollMotion(app) {
+    var content = app.querySelector(".content"); if (!content || reduce) return;
+    // 스크롤 따라 나타나기 — 처음부터 보이는 판은 그대로(깜빡임 없이), 아래에 있던 판만
+    var panels = [].slice.call(content.querySelectorAll(":scope > .section, :scope > .card, :scope > div:not([class]) > .section, :scope > div:not([class]) > .card, :scope > .bento > *, :scope > .scroll-row, :scope > .chat, :scope > .timeline"));
+    var fold = content.getBoundingClientRect().top + content.clientHeight;
+    var later = panels.filter(function (p) { return p.getBoundingClientRect().top > fold - 24; });
+    if (later.length && "IntersectionObserver" in window) {
+      later.forEach(function (p, i) { p.classList.add("mo-rv"); p.style.setProperty("--mo-rv-d", (i % 3) * 60 + "ms"); });
+      var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("mo-rv-in"); io.unobserve(e.target); } }); }, { root: content, threshold: 0.12 });
+      later.forEach(function (p) { io.observe(p); });
+    }
+    // 큰 제목 접힘 + 위 줄 그림자
+    var title = content.querySelector(".page-title"), bar = app.querySelector(":scope > .appbar, :scope > .topnav");
+    var backBar = bar && bar.classList.contains("appbar") && !bar.classList.contains("appbar-start");
+    if (title && backBar) app.classList.add("mo-large");
+    var ticking = false;
+    content.addEventListener("scroll", function () {
+      if (ticking) return; ticking = true;
+      requestAnimationFrame(function () {
+        ticking = false;
+        var y = content.scrollTop, p = Math.max(0, Math.min(1, y / 72));
+        app.classList.toggle("mo-scrolled", y > 4);
+        if (title) { title.style.transform = "translateY(" + (-6 * p) + "px) scale(" + (1 - 0.12 * p) + ")"; title.style.opacity = String(1 - 0.85 * p); }
+        if (backBar) app.classList.toggle("mo-title-up", p >= 0.9);
+      });
+    }, { passive: true });
+  }
+  window.HXScrollMotion = scrollMotion;
+
   // ---- 완성본 화면별 페이지 ----
   var M = window.HX_MOTION; if (!M) return;
   var app = doc.querySelector(".app"); if (!app) return;
@@ -448,5 +482,7 @@
     });
     paint();
   });
+  scrollMotion(app);
   window.HXMotion(app, M, false);
+
 })();

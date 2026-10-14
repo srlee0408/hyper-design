@@ -206,10 +206,20 @@ function stripShell(html) {
   return a < 0 || b < 0 ? html : html.slice(a, b).replace(/\s*<nav class="tabbar">[\s\S]*?<\/nav>/, "").trim();
 }
 
+/* 진행 막대 채움: .w-10~.w-100 대신 aria-valuenow / aria-valuemax(기본 100)만 적어도 10% 단위 .w-NN을 붙인다 (30-display.css) */
+function progressFill(html) {
+  return html.replace(/<div\b([^>]*\bclass="([^"]*\bprogress-bar\b[^"]*)"[^>]*)>/g, (m, attrs, cls) => {
+    if (/\bw-\d+\b/.test(cls)) return m;
+    const now = /aria-valuenow="([\d.]+)"/.exec(attrs), max = /aria-valuemax="([\d.]+)"/.exec(attrs);
+    if (!now) return m;
+    const pct = Math.max(0, Math.min(100, Math.round((Number(now[1]) / Number(max ? max[1] : 100)) * 10) * 10));
+    return pct ? m.replace(`class="${cls}"`, `class="${cls} w-${pct}"`) : m;
+  });
+}
 function expandFragment(S, s, html, o = {}) {
   const mobile = S.platform === "mobile";
   platformNow = mobile ? "mobile" : "web";
-  let out = expandParts(html);
+  let out = progressFill(expandParts(html));
   const trimmed = out.trim();
   if (s.overlayOf || /^<div\s+class=["'][^"']*\bmodal-backdrop\b/.test(trimmed)) return (mobile ? toSheet(trimmed) : trimmed) + "\n";
   const wrap = mobile ? wrapMobile : wrapShell;

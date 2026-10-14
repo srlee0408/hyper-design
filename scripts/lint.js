@@ -63,18 +63,26 @@ if (!S.toggles || !["normal", "large"].includes(S.toggles.type)) fail(`toggles.t
 // ---------- 분위기(looks)·버튼 색(swatches) — references/prd-to-screens.md §6 ----------
 {
   const LK = require("./looks.js");
-  if (!Array.isArray(S.looks) || !S.looks.length) warn(`looks 없음 — 기본 분위기(깔끔한 흰색/따뜻한 크림/차분한 밤)를 쓴다. PRD에 맞춘 분위기 3개와 버튼 색을 만든다`);
+  // 고를 수 있는 분위기 = PRD 맞춤(S.looks, 1개) + 고정 스타일(presets.json — 토스 느낌…) + 직접 고른 색(S.custom). 검사는 메인이 만든 것만
+  if (!Array.isArray(S.looks) || !S.looks.length) warn(`looks 없음 — 고정 스타일만 보인다. PRD에 맞춘 분위기 1개와 버튼 색 5개를 만든다 (prd-to-screens §6)`);
+  else if (S.looks.length !== 1) warn(`PRD 맞춤 분위기는 1개 (지금 ${S.looks.length}개) — 나머지는 고정 스타일(토스 느낌·당근 느낌…)이 채운다`);
   const looks = LK.getLooks(S);
-  if (S.looks && (S.looks.length < 3 || S.looks.length > 5)) warn(`분위기는 3~5개 (지금 ${S.looks.length}개, 시안마다 하나씩)`);
-  const lookIds = new Set();
-  for (const L of looks) {
+  const lookIds = new Set(looks.map((l) => l.id));
+  const ownIds = new Set();
+  for (const p of LK.PRESETS) if ((S.looks || []).some((l) => l.id === p.id)) warn(`분위기 id '${p.id}'가 고정 스타일과 겹침 — 고정 스타일이 가려진다`);
+  if (S.custom !== undefined) {
+    try { LK.hex2rgb(S.custom && S.custom.hex); } catch (e) { fail(`custom.hex는 #RRGGBB (직접 고른 색)`); }
+    if (S.custom && S.custom.base && !LK.BASES.some((b) => b.id === S.custom.base)) fail(`custom.base는 ${LK.BASES.map((b) => b.id).join("|")}`);
+    if (S.custom && S.custom.bgHex !== undefined && !/^#[0-9a-f]{6}$/i.test(S.custom.bgHex)) fail(`custom.bgHex는 #RRGGBB (그 밖의 바탕)`);
+  }
+  for (const L of S.looks || []) {
     const ld = `분위기 '${L.name || L.id}'`;
     if (!L.id || !/^[a-z0-9-]+$/.test(L.id)) fail(`${ld}: id는 영문 소문자`);
-    if (lookIds.has(L.id)) fail(`${ld}: id 중복`); lookIds.add(L.id);
+    if (ownIds.has(L.id)) fail(`${ld}: id 중복`); ownIds.add(L.id);
     if (!L.name) fail(`${ld}: name 없음 (사용자에게 보이는 이름, 예: "따뜻한 크림")`);
     else if (/[a-z]|#|테마|톤$/i.test(L.name)) warn(`${ld}: 이름은 한국어 일상어로 (예: "따뜻한 크림", "밤 바다")`);
     if (!["light", "dark"].includes(L.mode)) fail(`${ld}: mode는 light|dark`);
-    if (!["soft", "round", "sharp"].includes(L.shape)) fail(`${ld}: shape는 soft|round|sharp`);
+    if (!["soft", "round", "sharp", "flat"].includes(L.shape)) fail(`${ld}: shape는 soft|round|sharp|flat`);
     let ok = true;
     try { LK.hex2rgb(L.bg); LK.hex2rgb(L.ink); } catch (e) { fail(`${ld}: bg·ink는 #RRGGBB`); ok = false; }
     if (ok) {
@@ -107,6 +115,8 @@ if (!S.toggles || !["normal", "large"].includes(S.toggles.type)) fail(`toggles.t
   if (rec && rec.theme && !lookIds.has(rec.theme)) fail(`board.recommend.theme '${rec.theme}'이 looks에 없음`);
 }
 if (!Array.isArray(S.screens) || S.screens.length === 0) fail(`screens가 비어 있음`);
+// 고른 시안의 꾸밈(2턴부터 screens.json dress — 모든 화면에 입힌다)
+if (S.dress !== undefined) for (const b of require("./dress.js").check(S.dress)) fail(`screens.json dress: ${b}`);
 const roleKeys = new Set((S.roles || []).map((r) => r.key));
 
 // ---------- 화면·영역·id ----------
@@ -407,6 +417,70 @@ for (const s of slugs.values()) {
     }
     if (s.pattern === "form" && !s.variantOf && !s.state && !(s.cases || []).length) warn(`${desc}: 입력 화면인데 cases(엣지 케이스: 빈칸·너무 김·겹침·실패) 없음 — 그때 보여 줄 문구를 정한다`);
   }
+  // ---------- 사용성 10원칙 (NN/g, nngroup.com/articles/ten-usability-heuristics) — 사용자 결정 2026-10-14: 만드는 화면 규칙 + 자동 검사 ----------
+  // 이미 다른 검사가 맡는 것: 5 오류 예방(maxlength · 되돌릴 수 없는 버튼 확인 창 · 오류 상태 화면) · 4 같은 뜻 같은 아이콘(icons.json) · 1 메뉴의 지금 위치(expand.js가 .active)
+  const H = (n, name, desc, msg) => warn(`${desc}: [사용성 ${n} ${name}] ${msg}`);
+  const SYS_WORDS = /\b(error|null|undefined|submit|loading|fail(ed)?|exception|api|token|session)\b|에러 코드|오류 코드|시스템 오류|서버 오류|데이터베이스|파라미터|요청이 실패|유효하지 않은|처리 중 문제가 발생/i;
+  const GENERIC_ERR = /^(오류|에러|오류가 (발생|났어요)[^.]*\.?|잘못된 (입력|값)(입니다|이에요)?\.?|다시 시도해 ?주세요\.?|실패(했습니다|했어요)?\.?)$/;
+  const textOf = (h) => h.replace(/<!--[\s\S]*?-->/g, " ").replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/g, " ").replace(/\s+/g, " ").trim();
+  function usability(s, desc, html) {
+    const main = (/<main\b[\s\S]*<\/main>/.exec(html) || /<div class="modal-backdrop[\s\S]*$/.exec(html) || [html])[0];
+    const cta = (/<div class="[^"]*\bbottom-cta\b[\s\S]*?<\/div>/.exec(html) || [""])[0];   // 모바일: 주 버튼은 main 밖 아래 고정 줄
+    const area = cta && !main.includes(cta) ? main + cta : main;
+    const text = textOf(main);
+    const stays = [...html.matchAll(/data-stay="([^"]*)"/g)].map((m) => m[1]);
+    // 1 상태 보이기: 메뉴가 있는데 지금 위치가 안 보임(메뉴에 없는 상세 화면 — navActive로 속한 메뉴를)
+    if (/class="[^"]*\bnav-item\b/.test(html) && !/class="[^"]*\bnav-item\b[^"]*\bactive\b/.test(html)) H(1, "상태 보이기", desc, `메뉴에서 지금 어디인지 안 보임 — screens.json 이 화면에 navActive(속한 메뉴 화면 slug)`);
+    // 2 실제 세상의 말: 개발·시스템 용어
+    const jar = SYS_WORDS.exec(text + " " + stays.join(" ") + " " + (s.cases || []).map((c) => c && c.show).join(" "));
+    if (jar) H(2, "쓰는 사람의 말", desc, `'${jar[0]}' — 개발·시스템 용어 대신 사용자가 쓰는 말로 (ux-writing)`);
+    // 3 되돌리기·나가기: 뜨는 창에는 닫기·취소(data-back), 웹 입력 화면에는 취소
+    if (s.overlayOf && !/data-back\b/.test(html)) H(3, "나갈 길", desc, `뜨는 창에 닫기·취소 버튼(data-back)이 없음 — 언제든 빠져나갈 수 있게`);
+    if (!s.overlayOf && platform !== "mobile" && s.pattern === "form" && !s.state && !/data-back\b/.test(html)) H(3, "나갈 길", desc, `입력 화면에 취소·이전 버튼(data-back)이 없음`);
+    // 6 기억 대신 보기: 입력칸마다 이름표(안내 글자만으로 두지 않는다)
+    const fields = [...main.matchAll(/<(input|textarea|select)\b([^>]*)>/g)].filter((m) => !/type="(checkbox|radio|hidden|range|search|color)"/.test(m[2]));
+    const named = fields.filter((m) => /aria-label=|aria-labelledby=/.test(m[2])).length;
+    const labels = (main.match(/<label\b|class="[^"]*\bfield-label\b/g) || []).length;
+    if (fields.length && labels + named < fields.length) H(6, "기억 대신 보기", desc, `입력칸 ${fields.length}개에 이름표 ${labels + named}개 — 칸마다 .field-label(안내 글자 placeholder만으로는 쓰는 중에 사라진다)`);
+    // 7 빠른 길: 항목이 많은 목록·표에는 검색·거르기
+    // 목록 하나(또는 표 하나)의 줄 수 — 홈처럼 짧은 목록이 여러 개인 화면은 세지 않는다
+    const rows = Math.max(0, ...[...main.matchAll(/<(ul|ol|div)\b[^>]*class="[^"]*\blist\b[^"]*"[^>]*>([\s\S]*?)<\/\1>/g)].map((m) => (m[2].match(/class="[^"]*\blist-item\b/g) || []).length), ...[...main.matchAll(/<tbody\b[\s\S]*?<\/tbody>/g)].map((m) => (m[0].match(/<tr\b/g) || []).length));
+    if (rows >= 10 && !/class="[^"]*\b(search|chip-group|segmented|tabs|toolbar|select)\b/.test(main)) H(7, "빠른 길", desc, `항목 ${rows}개인데 검색·거르기가 없음 — 위에 검색 칸이나 거르기 칩`);
+    // 8 덜어내기: 주 버튼 하나 · 글 양
+    const primaries = (area.match(/class="[^"]*\bbtn-primary\b/g) || []).length;
+    if (primaries > 1) H(8, "덜어내기", desc, `주 버튼(btn-primary) ${primaries}개 — 가장 중요한 하나만, 나머지는 btn-secondary·btn-ghost`);
+    if (text.length > (platform === "mobile" ? 900 : 1500)) H(8, "덜어내기", desc, `화면 글자 ${text.length}자 — 핵심 작업에 필요 없는 설명은 덜어낸다`);
+    // 9 오류 알아보고 고치기: 오류 화면에는 눈에 띄는 오류 표시 + 고칠 버튼, 문구는 원인과 방법
+    if (s.state === "error") {
+      if (!/class="[^"]*\b(field-error|banner-danger|toast-danger|text-danger|badge-danger)\b/.test(main)) H(9, "오류 고치기", desc, `오류 화면인데 오류 표시(.field-error·.banner-danger)가 없음 — 무엇이 틀렸는지 눈에 띄게`);
+      if (!/<(button|a)\b[^>]*class="[^"]*\bbtn\b/.test(area)) H(9, "오류 고치기", desc, `오류 화면에 고칠 버튼이 없음 — '다시 하기'·'설정 열기'처럼 바로 고칠 길`);
+    }
+    const errTexts = [...main.matchAll(/class="[^"]*\bfield-error\b[^"]*"[^>]*>([\s\S]*?)<\/[a-z]+>/g)].map((m) => textOf(m[1]))
+      .concat((s.cases || []).filter((c) => c && c.show && (c.tone || "danger") === "danger").map((c) => c.show))
+      .concat([...html.matchAll(/data-stay="([^"]*)"[^>]*data-stay-tone="danger"|data-stay-tone="danger"[^>]*data-stay="([^"]*)"/g)].map((m) => m[1] || m[2]));
+    for (const t of errTexts) if (GENERIC_ERR.test(String(t).trim())) H(9, "오류 고치기", desc, `오류 문구 "${t}" — 무엇이 왜 안 됐는지 + 어떻게 고치는지 (예: "비밀번호가 8자보다 짧아요. 2자 더 입력해 주세요")`);
+    // 실제 앱처럼 글자·정렬 (00-rules 20, 사용자 결정 2026-10-14)
+    const centered = (main.match(/class="[^"]*\btext-center\b/g) || []).length;
+    if (centered && !s.state && !/class="[^"]*\b(empty|hero|poster)\b/.test(main) && s.pattern !== "onboarding" && !s.overlayOf) warn(`${desc}: [글자·정렬] 가운데 정렬 ${centered}곳 — 판 안 글자는 왼쪽 정렬(가운데는 빈 화면·처음 화면·창 안내·.hero/.poster만)`);
+    const bodyBig = (main.match(/<(p|span|div|li)\b[^>]*class="[^"]*\btext-(lg|xl)\b/g) || []).length;
+    if (bodyBig > 1) warn(`${desc}: [글자·정렬] 본문에 .text-lg/.text-xl ${bodyBig}곳 — 글자 크기는 정해진 단계만(제목·큰 숫자·묶음 제목·본문·보조·작은 글)`);
+    for (const m of main.matchAll(/class="[^"]*\bavatar\b[^"]*"[^>]*>\s*([^<]{3,})</g)) { warn(`${desc}: [글자·정렬] 얼굴 동그라미 안 글자 '${m[1].trim()}' — 한 글자만`); break; }
+    const lgBtns = (area.match(/class="[^"]*\bbtn-lg\b/g) || []).length;
+    if (lgBtns > 1) warn(`${desc}: [글자·정렬] 큰 버튼(.btn-lg) ${lgBtns}개 — 맨 아래 주 버튼 하나에만`);
+    // 10 도움말: 처음·빈 화면에는 무엇을 하면 되는지 한 줄 + 시작 버튼
+    const hasBtn = /<(button|a)\b[^>]*class="[^"]*\bbtn\b/.test(area);
+    if (s.state === "empty" && (!/class="[^"]*\bempty-desc\b/.test(main) || !hasBtn)) H(10, "그 자리 도움말", desc, `빈 화면에 안내 한 줄(.empty-desc)과 시작 버튼이 있어야 함 — 무엇부터 하면 되는지`);
+    if (s.state === "first-run" && !hasBtn) H(10, "그 자리 도움말", desc, `처음 화면에 시작 버튼이 없음 — 무엇부터 하면 되는지 버튼 하나로`);
+    }
+  for (const s of S.screens || []) {
+    const html = s.file && exists(path.join(runDir, s.file)) ? fs.readFileSync(path.join(runDir, s.file), "utf8") : "";
+    if (html) usability(s, `화면 ${s.slug}`, html);
+  }
+  // 시안 화면도 같은 기준으로 (1턴 시안 보드에 보이는 화면)
+  for (const c of Array.isArray(S.concepts) ? S.concepts : []) for (const slug of c.screens || []) {
+    const fp = path.join(runDir, "concepts", c.id || "", slug + ".html"), sc = (S.screens || []).find((x) => x.slug === slug);
+    if (sc && exists(fp)) usability(sc, `시안 ${c.id} / ${slug}`, fs.readFileSync(fp, "utf8"));
+  }
   // 움직임(motion): 완성본에서 실제로 재현된다(packages/core/motion). 정책에 글로만 적지 않는다
   const MOTION = ["hold", "breathe", "dim", "countup", "stagger", "reorder", "carousel", "play"];
   const NEEDS = { hold: "trigger", breathe: "any", reorder: "region", carousel: "region", play: "region" };
@@ -506,13 +580,18 @@ if (S.board) {
   }
 }
 
-// ---------- 시안(concepts) · 레퍼런스 — references/prd-to-screens.md §7 ----------
+// ---------- 시안(concepts) · 레이아웃 패턴 — references/prd-to-screens.md §6-1 ----------
 if (S.concepts !== undefined) {
   const C = Array.isArray(S.concepts) ? S.concepts : [];
   // 메뉴 구조: web = 왼쪽 메뉴·위쪽 탭·아이콘 메뉴 / mobile = 아래 탭·위쪽 탭·메뉴 없음 (scripts/expand.js)
   const SHELLS = platform === "mobile" ? { tabbar: null, top: "nav-top", none: "no-nav" } : { sidebar: null, top: "nav-top", rail: "nav-rail" };
-  if (C.length !== 5) warn(`시안은 5개 (지금 ${C.length}개)`);
-  const lookIds = new Set(require("./looks.js").getLooks(S).map((l) => l.id));
+  // 시안 10개 = 과감함 1~10단계 (사용자 결정 2026-10-14). 예전 실행물의 5개는 경고만
+  if (C.length !== 10) warn(`시안은 10개 — 과감함 1~10단계 (지금 ${C.length}개)`);
+  const DR = require("./dress.js");
+  const levels = C.map((c) => c.level).filter((v) => v != null);
+  if (C.length === 10 && (levels.length !== 10 || new Set(levels).size !== 10 || levels.some((v) => !(v >= 1 && v <= 10)))) fail(`시안 10개의 level은 1~10이 한 번씩 (지금: ${levels.join(",") || "없음"})`);
+  // 레이아웃 패턴 목록 — 시안은 여기서 고른 서로 다른 레이아웃 (사용자 결정 2026-10-14: 레퍼런스 조사 대신)
+  const LAYOUT_IDS = new Set((JSON.parse(fs.readFileSync(path.join(__dirname, "../packages/core/layouts/layouts.json"), "utf8")).layouts || []).map((l) => l.id));
   const cids = new Set();
   for (const c of C) {
     const cd = `시안 ${c.id || "?"}`;
@@ -522,10 +601,17 @@ if (S.concepts !== undefined) {
     else if (/[a-z]{3,}|시안|레이아웃|대시보드형|타입/i.test(c.name)) warn(`${cd}: 이름 "${c.name}" — 무엇이 먼저 보이는지 일상어로 (예: "오늘 할 일부터 보기")`);
     if (!c.why) warn(`${cd}: why 없음 — 이 안이 누구에게 왜 좋은지 한 문장`);
     if (!(c.shell in SHELLS)) fail(`${cd}: shell은 ${Object.keys(SHELLS).join("|")}`);
-    if (!lookIds.has(c.look)) fail(`${cd}: look '${c.look}'이 looks에 없음`);
-    if (!Array.isArray(c.refs) || !c.refs.length) warn(`${cd}: 참고한 곳(refs) 없음 — 레퍼런스에서 무엇을 가져왔는지`);
-    for (const r of c.refs || []) if (!r.name || !r.borrow) warn(`${cd}: refs 항목에 name·borrow 필요`);
+    if (!c.layout) (S.stage === "concept" ? fail : warn)(`${cd}: layout 없음 — packages/core/layouts/layouts.json의 id 하나`);   // 예전 실행물(시안 확정 뒤)은 경고만
+    else if (!LAYOUT_IDS.has(c.layout)) fail(`${cd}: layout '${c.layout}'이 레이아웃 목록에 없음 (${[...LAYOUT_IDS].join("|")})`);
+    if (c.mix && !LAYOUT_IDS.has(c.mix)) fail(`${cd}: mix '${c.mix}'이 레이아웃 목록에 없음`);
+    if (c.mix && c.mix === c.layout) warn(`${cd}: mix가 layout과 같음 — 다른 패턴을 섞는다`);
+    if (C.length === 10 && (c.level || 0) >= 4 && !c.mix) warn(`${cd}: ${c.level}단계인데 섞은 패턴(mix) 없음 — 4단계부터는 패턴 두 개를 섞는다`);
+    if (!c.dress) (S.stage === "concept" ? fail : warn)(`${cd}: 꾸밈(dress) 없음 — node scripts/dress.js ${runDir}`);
+    else for (const b of DR.check(c.dress)) fail(`${cd}: 꾸밈 ${b}`);
+    if (c.look) warn(`${cd}: look은 이제 쓰지 않음 — 시안은 레이아웃만 다르고 색은 시안 보드 위쪽에서 따로 고른다`);
+    if (c.refs) warn(`${cd}: refs는 이제 쓰지 않음 — 레퍼런스 조사를 없앴다(레이아웃 목록의 used가 근거)`);
     const scr = Array.isArray(c.screens) ? c.screens : [];
+    if (C.length === 10 && (scr.length < 5 || scr.length > 6)) warn(`${cd}: 시안이 10개면 메인 화면은 5~6장 (지금 ${scr.length}장) — 사용자 결정 2026-10-14`);
     if (scr.length < 3) warn(`${cd}: 보여줄 메인 화면은 3~6장 (지금 ${scr.length}장) — 역할별 메뉴 화면부터`);
     if (scr.length > 6) fail(`${cd}: 보여줄 메인 화면은 최대 6장 (지금 ${scr.length}장) — 1턴이 길어지고 비교하기 어렵다`);
     for (const slug of scr) if (!slugs.has(slug)) fail(`${cd}: 화면 '${slug}' 없음`);
@@ -534,8 +620,12 @@ if (S.concepts !== undefined) {
   if (S.concept && !cids.has(S.concept)) fail(`screens.json concept '${S.concept}'이 concepts에 없음`);
   if (C.length > 1 && new Set(C.map((c) => c.shell)).size < Math.min(3, C.length))
     warn(`시안끼리 메뉴 구조(shell)가 ${new Set(C.map((c) => c.shell)).size}가지뿐 — ${Object.keys(SHELLS).join("·")}을 모두 쓴다`);
-  const combo = new Set(C.map((c) => c.shell + "|" + c.look));
-  if (combo.size < C.length) warn(`메뉴 구조와 분위기가 똑같은 시안이 있음 — 첫 화면 구성·밀도까지 다르게`);
+  const lays = C.map((c) => c.layout).filter(Boolean);
+  if (new Set(lays).size < lays.length) warn(`같은 레이아웃(layout)을 쓰는 시안이 있음 — 시안마다 서로 다른 레이아웃이어야 한다`);
+  const used = {}; for (const c of C) for (const id of [c.layout, c.mix].filter(Boolean)) used[id] = (used[id] || 0) + 1;
+  for (const [id, n] of Object.entries(used)) if (n > 2) warn(`레이아웃 '${id}'을 시안 ${n}곳에서 씀 — 패턴을 더 고르게 섞는다`);
+  for (let i = 0; i < C.length; i++) for (let j = i + 1; j < C.length; j++) if (C[i].dress && C[j].dress && DR.diff(C[i].dress, C[j].dress) < 3)
+    warn(`시안 ${C[i].id}·${C[j].id}: 꾸밈 카테고리가 ${DR.diff(C[i].dress, C[j].dress)}개만 다름 — 3개 이상 다르게`);
   const names = C.map((c) => c.home || "").filter(Boolean);
   if (names.length === C.length && new Set(names).size < C.length) warn(`첫 화면 구성(home)이 겹치는 시안이 있음`);
   // 시안의 메인 화면 조각
@@ -573,9 +663,7 @@ if (S.concepts !== undefined) {
     const appCls = ((/<div\s+class=["']([^"']*\bapp\b[^"']*)["']/.exec(html) || [])[1] || "").split(/\s+/);
     if (!appCls.includes(SHELLS[main.shell])) warn(`화면 ${s.slug}: 시안 ${main.id}의 메뉴 구조(${main.shell})인데 .app에 ${SHELLS[main.shell]} 없음`);
   }
-  const R = Array.isArray(S.references) ? S.references : [];
-  if (R.length < 3) warn(`살펴본 서비스(references) ${R.length}곳 — 5곳 정도 조사해 시안의 근거로 (ref-scout)`);
-  for (const r of R) if (!r.name || !r.url || !r.borrow) warn(`references '${r.name || "?"}': name·url·borrow 필요`);
+  if (S.references) warn(`references는 이제 쓰지 않음 — 레퍼런스 조사를 없앴다`);
 }
 
 // ---------- 출력 ----------

@@ -1,4 +1,4 @@
-/* 22-board-canvas.js — board 진입: 상단바(화면 느낌 · 의견 보내기) · 사용 흐름 = 구역 보드(08-sections.js) · 표시 상태를 보드에 칠하기.
+/* 22-board-canvas.js — board 진입: 상단바(글자 크기 · 색 바꾸기 · 의견 보내기) · 사용 흐름 = 구역 보드(08-sections.js) · 표시 상태를 보드에 칠하기.
    사용 흐름은 이해하는 곳 — 화면을 누르면 화면 디자인 탭의 그 화면으로 가서 의견을 남긴다(24-board-screens.js). */
 (function () {
   "use strict";
@@ -20,67 +20,23 @@
     var tip = { theme: "화면 전체의 배경색과 분위기예요", type: "화면 글자와 버튼의 크기예요", accent: "가장 중요한 버튼과 지금 고른 메뉴에 쓰는 색이에요" }[key];
     return HX.el("div", { class: "hx-bd-ctl", title: tip || null }, [HX.el("span", { class: "hx-bd-ctl-l", text: label }), seg]);
   }
-  // 분위기: PRD에 맞춰 만든 3개 (이름 + 배경·버튼 색 미리보기)
-  function lookCtl() {
-    var st = B.state, btns = [];
-    var seg = HX.el("div", { class: "hx-bd-seg hx-bd-looks", role: "group", "aria-label": "분위기" });
-    B.looks.forEach(function (L) {
-      var isRec = L.id === B.REC.theme, sw = L.swatches[0] || { hex: "#999999" };
-      var b = HX.el("button", { type: "button", class: "hx-bd-seg-btn hx-bd-look", title: L.name + (L.why ? " — " + L.why : "") + (isRec && B.recWhy.theme ? " (추천: " + B.recWhy.theme + ")" : ""),
-        onclick: function () { st.theme = L.id; st.accent = B.fixSwatch(L.id, L.id === B.REC.theme ? B.REC.accent : ""); B.applyTheme(); sync(); B.rebuildSwatches(); } }, [
-        HX.el("span", { class: "hx-look-dot", style: "background:" + L.bg + ";box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)" }, HX.el("span", { style: "background:" + sw.hex })),
-        HX.el("span", { class: "hx-look-t" }, [HX.el("b", { text: L.name }), L.why || L.font ? HX.el("small", { text: (L.why || "") + (L.font ? (L.why ? " · " : "") + "글꼴 " + L.font : "") }) : null]), isRec ? HX.el("span", { class: "hx-rec-tag", text: "추천" }) : null]);
-      btns.push([b, L.id]); seg.appendChild(b);
-    });
-    function sync() { btns.forEach(function (x) { x[0].setAttribute("aria-pressed", x[1] === st.theme ? "true" : "false"); }); }
-    sync();
-    return HX.el("div", { class: "hx-bd-ctl", title: "화면 전체의 배경과 분위기예요" }, [HX.el("span", { class: "hx-bd-ctl-l", text: "분위기" }), seg]);
-  }
-  // 버튼 색: 고른 분위기에 어울리는 색 5개 (첫 번째가 추천)
-  function swatchCtl() {
-    var st = B.state, box = HX.el("div", { class: "hx-bd-swatches", role: "radiogroup", "aria-label": "버튼 색" }), name = HX.el("span", { class: "hx-bd-swname" });
-    function build() {
-      box.innerHTML = "";
-      var L = B.look(st.theme), rec = B.fixSwatch(st.theme, st.theme === B.REC.theme ? B.REC.accent : "");
-      L.swatches.forEach(function (sw) {
-        var b = HX.el("button", { type: "button", class: "hx-sw", role: "radio", title: sw.name + (sw.id === rec ? " (추천" + (B.recWhy.accent && st.theme === B.REC.theme ? " — " + B.recWhy.accent : "") + ")" : ""), "aria-label": sw.name,
-          style: "--sw:" + sw.hex, onclick: function () { st.accent = sw.id; B.applyTheme(); build(); } },
-          sw.id === rec ? HX.el("span", { class: "hx-rec-tag", text: "추천" }) : null);
-        b.setAttribute("aria-checked", sw.id === st.accent ? "true" : "false");
-        box.appendChild(b);
-      });
-      name.textContent = B.swatch(st.theme, st.accent).name;
-    }
-    B.rebuildSwatches = build; build();
-    return HX.el("div", { class: "hx-bd-ctl", title: "가장 중요한 버튼과 지금 고른 메뉴에 쓰는 색이에요" }, [HX.el("span", { class: "hx-bd-ctl-l", text: "버튼 색" }), box, name]);
-  }
+  // 화면 느낌 = 글자 크기만 상단바에 바로. 색(분위기·버튼 색)은 옆의 '색 바꾸기'(packages/core/color/picker.js)에서 자유롭게
+  // (사용자 결정 2026-10-14: "색상은 레이아웃 선택 후 결과물에서 바로바로 바뀌게")
   function feelButton() {
-    var ctls = themeControls();
-    if (ctls.length === 1 && ctls[0].classList.contains("hx-bd-locked")) return ctls[0];   // 모두 확정이면 글자만
-    var sum = HX.el("span", { class: "hx-feel-sum" });
-    var pop = HX.el("div", { class: "hx-feel", role: "dialog", "aria-label": "화면 느낌 고르기" }, [
-      HX.el("div", { class: "hx-feel-h" }, [HX.el("b", { text: "화면 느낌" }), HX.el("span", { text: "고르면 모든 화면에 바로 적용돼요" })])].concat(ctls));
-    var btn = HX.btn("", { cls: "hx-feel-btn", title: "분위기 · 글자 크기 · 버튼 색 고르기", onclick: function (e) { e.stopPropagation(); toggle(!pop.classList.contains("hx-open")); } });
-    btn.appendChild(HX.el("span", { class: "hx-feel-k", text: "화면 느낌" })); btn.appendChild(sum); btn.appendChild(HX.icon("#i-chevron-down", "icon icon-sm"));
-    function paintSum() { sum.textContent = B.look(B.state.theme).name + " · " + B.TYPE_LABEL[B.state.type] + " · " + B.swatch(B.state.theme, B.state.accent).name; }
-    function toggle(on) { pop.classList.toggle("hx-open", on); btn.setAttribute("aria-expanded", on ? "true" : "false"); }
-    doc.addEventListener("click", function (e) { if (!pop.contains(e.target) && e.target !== btn) toggle(false); });
-    doc.addEventListener("keydown", function (e) { if (e.key === "Escape") toggle(false); });
-    HX.on("board-change", paintSum); paintSum();
-    return HX.el("div", { class: "hx-feel-wrap" }, [btn, pop]);
+    var st = B.state;
+    if (B.isLocked("type")) return HX.el("span", { class: "hx-bd-locked", text: "확정: 글자 크기 " + B.TYPE_LABEL[st.type] });
+    return segCtl("글자 크기", "type", ["normal", "large"], ["보통", "크게"], function (v) { st.type = v; B.applyTheme(); });
   }
-  function themeControls() {
-    var st = B.state, out = [];
-    B.rebuildSwatches = function () {};
-    if (B.isLocked("theme") && B.isLocked("type") && B.isLocked("swatch")) return [HX.el("span", { class: "hx-bd-locked", text: "확정: " + B.lookLine() })];
-    if (B.isLocked("theme")) out.push(HX.el("span", { class: "hx-bd-locked", text: "확정: 분위기 " + B.look(st.theme).name }));
-    else out.push(lookCtl());
-    if (B.isLocked("type")) out.push(HX.el("span", { class: "hx-bd-locked", text: "확정: 글자 크기 " + B.TYPE_LABEL[st.type] }));
-    else out.push(segCtl("글자 크기", "type", ["normal", "large"], ["보통", "크게"], function (v) { st.type = v; B.applyTheme(); }));
-    if (B.isLocked("swatch")) out.push(HX.el("span", { class: "hx-bd-locked", text: "확정: 버튼 색 " + B.swatch(st.theme, st.accent).name }));
-    else out.push(swatchCtl());
-    return out;
-  }
+  /* '색 바꾸기' — 고르면 보드 상태(의견 보내기 첫 줄)에도 담긴다 */
+  B.mountColor = function (anchor, o) {
+    if (!window.HXColor || B.isLocked("theme")) return;
+    var st = B.state;
+    window.HXColor.mount({ project: HX.meta.project, anchor: anchor, inline: !!(o && o.inline), initial: { theme: st.theme, swatch: st.accent, custom: st.custom || null }, onChange: function (sel) {
+      st.custom = sel.theme === "custom" ? sel.custom : null;
+      if (st.custom) B.putCustom(st.custom);
+      st.theme = sel.theme; st.accent = sel.swatch; B.applyTheme();
+    } });
+  };
   // ---------- 선택: 사용 흐름에서는 고르지 않는다 — 화면을 누르면 화면 디자인 탭으로 ----------
   B.hl = function () {};
   B.go = function () {};
@@ -108,9 +64,10 @@
     app.classList.add("hx-app"); app.classList.add("hx-bd");
     var copyBtn = HX.btn("", { cls: "hx-primary hx-bd-copy", icon: HX.icon("#i-send"), title: "무엇이 전달되는지 확인하고 복사해요 (⌘/Ctrl+Shift+C)", onclick: function () { B.openSend(); } });
     var copyLabel = HX.el("span"); copyBtn.appendChild(copyLabel);
+    var colorAnchor = HX.el("span", { class: "hx-bd-color" });
     var bar = HX.el("div", { class: "hx-bar hx-bd-bar" }, [
       HX.el("div", { class: "hx-bar-title", title: HX.meta.title || "" }, [HX.meta.title || HX.meta.project || "", HX.el("small", { text: "초안 " + (HX.meta.round || 1) })]),
-      HX.el("div", { class: "hx-bd-ctls" }, [feelButton()]),
+      HX.el("div", { class: "hx-bd-ctls" }, [feelButton(), colorAnchor]),
       HX.el("span", { class: "hx-bar-spacer" }),
       copyBtn
     ]);
@@ -118,6 +75,7 @@
     B.panel = B.buildPanel(HX.el("span"));   // '전체'(질문·남긴 의견) — 화면 디자인 탭 오른쪽이 이 패널을 그대로 쓴다
     var main = HX.el("div", { class: "hx-bd-main" }, [canvas]);
     app.appendChild(bar); app.appendChild(main);
+    B.mountColor(colorAnchor);
 
     B.view = HX.buildSections({ pickTitle: "의견 남기기", pickIcon: "comment", onPick: function (slug) { if (B.showDesign) B.showDesign(slug); } });
     canvas.appendChild(B.view.el);
